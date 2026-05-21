@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SOURCE = Path("/Users/adrian/Downloads/Qatar_google_maps_places_sample_1000.jsonl")
 COMPACT_DATA = ROOT / "places_compact.json"
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
 
 
 def load_local_env():
@@ -168,43 +168,86 @@ def safe_number(value, digits=1):
     return f"{value:.{digits}f}" if isinstance(value, (int, float)) else "N/A"
 
 
-def openai_json(messages):
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set. Set it in the terminal before starting server.py.")
-
-    data = json.dumps(
-        {
-            "model": MODEL,
-            "messages": messages,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=data,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+def parse_json_content(content):
     try:
-        with urllib.request.urlopen(request, timeout=45) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenAI API error: {detail}") from exc
+        return json.loads(content)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", content or "", re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        raise
 
-    content = payload["choices"][0]["message"]["content"]
-    return json.loads(content)
+
+def chat_completion_url(provider):
+    if provider == "fanar":
+        explicit_url = os.getenv("FANAR_API_URL")
+        if explicit_url:
+            return explicit_url
+        base_url = os.getenv("FANAR_API_BASE_URL", "https://api.fanar.qa/v1")
+        return f"{base_url.rstrip('/')}/chat/completions"
+    return "https://api.openai.com/v1/chat/completions"
+
+
+def llm_settings():
+    provider = os.getenv("AI_PROVIDER", "fanar").strip().lower()
+    if provider == "fanar":
+        return {
+            "provider": "fanar",
+            "api_key": os.getenv("FANAR_API_KEY"),
+            "model": os.getenv("FANAR_MODEL", "Fanar"),
+            "url": chat_completion_url("fanar"),
+        }
+    return {
+        "provider": "openai",
+        "api_key": os.getenv("OPENAI_API_KEY"),
+        "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        "url": chat_completion_url("openai"),
+    }
+
+
+def llm_json(messages):
+    settings = llm_settings()
+    api_key = settings["api_key"]
+    if not api_key:
+        key_name = "FANAR_API_KEY" if settings["provider"] == "fanar" else "OPENAI_API_KEY"
+        raise RuntimeError(f"{key_name} is not set. Add it to your local .env or deployment environment.")
+
+    body = {
+        "model": settings["model"],
+        "messages": messages,
+        "temperature": 0,
+    }
+    attempts = [dict(body, response_format={"type": "json_object"}), body]
+    last_error = None
+    for payload_body in attempts:
+        data = json.dumps(payload_body).encode("utf-8")
+        request = urllib.request.Request(
+            settings["url"],
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                content = payload["choices"][0]["message"]["content"]
+                return parse_json_content(content)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            last_error = detail
+            if "response_format" not in detail and "json_object" not in detail:
+                break
+
+    raise RuntimeError(f"{settings['provider'].title()} API error: {last_error}")
 
 
 def parse_intent(question):
     type_examples = ", ".join(PLACE_TYPES[:120])
     municipality_examples = ", ".join(MUNICIPALITIES[:40])
-    return openai_json(
+    return llm_json(
         [
             {
                 "role": "system",
@@ -230,7 +273,7 @@ def parse_intent(question):
 def generate_answer(question, title, trace, rows):
     compact_rows = rows[:8]
     try:
-        payload = openai_json(
+        payload = llm_json(
             [
                 {
                     "role": "system",
@@ -439,7 +482,7 @@ def main():
     host = os.getenv("HOST", "0.0.0.0")
     server = ThreadingHTTPServer((host, port), Handler)
     print(f"Serving AI demo on http://localhost:{port}")
-    print("The API key is read from OPENAI_API_KEY and is not stored in project files.")
+    print("The AI API key is read from environment variables and is not stored in project files.")
     server.serve_forever()
 
 

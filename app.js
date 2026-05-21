@@ -318,7 +318,7 @@ async function runNaturalLanguage() {
     setAnswer("AI query failed", error.message);
     setTrace([
       "The browser reached the demo, but the AI backend could not complete the request.",
-      "Check that server.py is running and OPENAI_API_KEY is set in the terminal.",
+      "Check that server.py is running and the AI provider environment variables are set.",
     ]);
     setTable([], []);
   }

@@ -23,13 +23,16 @@ Then open:
 http://localhost:8765
 ```
 
-## Run the AI Natural-Language Demo
+## Run the AI Natural-Language Demo with Fanar
 
-Do not hard-code your API key into the source files. Either set it as a local environment variable:
+Do not hard-code your API key into the source files. Fanar API access should be configured through local environment variables or deployment environment variables.
 
 ```bash
 cd /Users/adrian/Desktop/QCRI/qatar_places_demo
-export OPENAI_API_KEY="YOUR_KEY_HERE"
+export AI_PROVIDER=fanar
+export FANAR_API_KEY="YOUR_FANAR_KEY_HERE"
+export FANAR_API_BASE_URL="https://api.fanar.qa/v1"
+export FANAR_MODEL="Fanar"
 /Users/adrian/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 prepare_data.py
 /Users/adrian/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 server.py
 ```
@@ -41,7 +44,7 @@ cd /Users/adrian/Desktop/QCRI/qatar_places_demo
 cp .env.example .env
 ```
 
-Then edit `.env` and replace `your_openai_api_key_here` with your key. The `.env` file is ignored by git.
+Then edit `.env` and replace `your_fanar_api_key_here` with your Fanar key. The `.env` file is ignored by git.
 
 Then open:
 
@@ -56,7 +59,7 @@ See `DEPLOYMENT.md` for deployment instructions.
 There are two deployment modes:
 
 - GitHub Pages: publishes the static website. The built-in GIS tools work in the browser.
-- Python backend hosting: enables the natural-language AI parser. Set `OPENAI_API_KEY` in the deployment platform's environment variables instead of committing it to the project.
+- Python backend hosting: enables the natural-language AI parser. Set `FANAR_API_KEY`, `FANAR_API_BASE_URL`, and `FANAR_MODEL` in the deployment platform's environment variables instead of committing them to the project.
 
 For GitHub Pages, keep `config.js` with an empty `API_BASE_URL`. After deploying `server.py` on a backend host, set `API_BASE_URL` to that backend URL.
 

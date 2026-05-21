@@ -17,7 +17,7 @@ GitHub Pages can host the frontend files:
 
 The browser-side GIS tools work on GitHub Pages because the POI data is already included in `places_data.js`.
 
-Natural-language AI parsing does not run on GitHub Pages by itself because GitHub Pages cannot securely store `OPENAI_API_KEY` or run `server.py`.
+Natural-language AI parsing does not run on GitHub Pages by itself because GitHub Pages cannot securely store `FANAR_API_KEY` or run `server.py`.
 
 This repository includes `.github/workflows/pages.yml`. After pushing to GitHub, enable Pages with GitHub Actions as the source, then the workflow will publish the site.
 
@@ -31,8 +31,10 @@ This repository includes `.github/workflows/pages.yml`. After pushing to GitHub,
    - Build command: `python prepare_data.py`
    - Start command: `python server.py`
 5. Add environment variables:
-   - `OPENAI_API_KEY`: your OpenAI API key
-   - `OPENAI_MODEL`: `gpt-4o-mini`
+   - `AI_PROVIDER`: `fanar`
+   - `FANAR_API_KEY`: your Fanar API key
+   - `FANAR_API_BASE_URL`: `https://api.fanar.qa/v1`
+   - `FANAR_MODEL`: `Fanar`
 6. Deploy.
 
 The app will use the platform-provided `PORT` automatically.
