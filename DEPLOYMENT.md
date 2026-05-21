@@ -23,23 +23,31 @@ This repository includes `.github/workflows/pages.yml`. After pushing to GitHub,
 
 ## Option 2: Render Backend
 
-1. Push this folder to a GitHub repository.
-2. Create a new **Web Service** on Render.
-3. Select the repository.
-4. Use these settings:
+The repository includes `render.yaml`, so Render can deploy the backend from the GitHub repo.
+
+1. Go to Render and create a new **Blueprint** or **Web Service** from this repository.
+2. If using Blueprint, Render will read `render.yaml`.
+3. If using Web Service manually, use these settings:
    - Runtime: Python
    - Build command: `python prepare_data.py`
    - Start command: `python server.py`
-5. Add environment variables:
+4. Add environment variables:
    - `AI_PROVIDER`: `fanar`
    - `FANAR_API_KEY`: your Fanar API key
    - `FANAR_API_BASE_URL`: `https://api.fanar.qa/v1`
    - `FANAR_MODEL`: `Fanar`
-6. Deploy.
+   - `ALLOWED_ORIGIN`: `https://adrianchenyuqiu.github.io`
+5. Deploy.
 
 The app will use the platform-provided `PORT` automatically.
 
-After Render deploys, copy the Render service URL and update `config.js`:
+This frontend is already configured to call:
+
+```text
+https://qatar-places-gis-rag-demo-api.onrender.com
+```
+
+If Render gives the service a different URL, copy the Render service URL and update `config.js`:
 
 ```js
 window.QATAR_DEMO_CONFIG = {
@@ -48,6 +56,12 @@ window.QATAR_DEMO_CONFIG = {
 ```
 
 Then push that `config.js` change to GitHub so the GitHub Pages frontend can call the backend.
+
+You can test the backend health endpoint after deployment:
+
+```text
+https://qatar-places-gis-rag-demo-api.onrender.com/api/health
+```
 
 ## What Gets Deployed
 

@@ -61,7 +61,7 @@ There are two deployment modes:
 - GitHub Pages: publishes the static website. The built-in GIS tools work in the browser.
 - Python backend hosting: enables the natural-language AI parser. Set `FANAR_API_KEY`, `FANAR_API_BASE_URL`, and `FANAR_MODEL` in the deployment platform's environment variables instead of committing them to the project.
 
-For GitHub Pages, keep `config.js` with an empty `API_BASE_URL`. After deploying `server.py` on a backend host, set `API_BASE_URL` to that backend URL.
+For GitHub Pages, `config.js` points to the Render backend URL. Deploy `server.py` on Render and set the Fanar environment variables there so the public website can use AI without exposing the API key.
 
 ## Research Connection
 

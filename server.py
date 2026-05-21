@@ -454,6 +454,23 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
+    def do_GET(self):
+        if self.path == "/api/health":
+            payload = {
+                "ok": True,
+                "provider": os.getenv("AI_PROVIDER", "fanar"),
+                "model": os.getenv("FANAR_MODEL", os.getenv("OPENAI_MODEL", "Fanar")),
+                "fanar_key_configured": bool(os.getenv("FANAR_API_KEY")),
+            }
+            encoded = json.dumps(payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+            return
+        super().do_GET()
+
     def do_POST(self):
         if self.path != "/api/ask":
             self.send_error(404)

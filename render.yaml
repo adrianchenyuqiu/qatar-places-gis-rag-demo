@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: qatar-places-gis-rag-demo-api
+    runtime: python
+    plan: free
+    buildCommand: python prepare_data.py
+    startCommand: python server.py
+    envVars:
+      - key: AI_PROVIDER
+        value: fanar
+      - key: FANAR_API_BASE_URL
+        value: https://api.fanar.qa/v1
+      - key: FANAR_MODEL
+        value: Fanar
+      - key: ALLOWED_ORIGIN
+        value: https://adrianchenyuqiu.github.io
+      - key: FANAR_API_KEY
+        sync: false
