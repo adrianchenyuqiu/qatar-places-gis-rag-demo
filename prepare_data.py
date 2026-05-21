@@ -37,6 +37,11 @@ def compact_record(record):
 
 
 def main():
+    if not SOURCE.exists() and OUT.exists() and JSON_OUT.exists():
+        print(f"Source file not found: {SOURCE}")
+        print("Using committed places_data.js and places_compact.json instead.")
+        return
+
     records = []
     with SOURCE.open(encoding="utf-8") as f:
         for line in f:

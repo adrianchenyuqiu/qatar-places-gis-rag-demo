@@ -3,7 +3,7 @@ services:
     name: qatar-places-gis-rag-demo-api
     runtime: python
     plan: free
-    buildCommand: python prepare_data.py
+    buildCommand: python -m py_compile server.py prepare_data.py
     startCommand: python server.py
     envVars:
       - key: AI_PROVIDER
