@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SOURCE = Path("/Users/adrian/Downloads/Qatar_google_maps_places_sample_1000.jsonl")
 COMPACT_DATA = ROOT / "places_compact.json"
-APP_VERSION = "2026-05-21-fanar-resilient-v2"
+APP_VERSION = "2026-05-21-grounded-type-v3"
 
 TYPE_ALIASES = {
     "hospitals": "hospital",
