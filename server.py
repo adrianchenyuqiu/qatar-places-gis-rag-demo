@@ -169,6 +169,12 @@ def safe_number(value, digits=1):
 
 
 def parse_json_content(content):
+    if isinstance(content, list):
+        content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
+    content = (content or "").strip()
+    if content.startswith("```"):
+        content = re.sub(r"^```(?:json)?\s*", "", content)
+        content = re.sub(r"\s*```$", "", content).strip()
     try:
         return json.loads(content)
     except json.JSONDecodeError:
@@ -176,6 +182,18 @@ def parse_json_content(content):
         if match:
             return json.loads(match.group(0))
         raise
+
+
+def response_message_content(payload):
+    choices = payload.get("choices") or []
+    if not choices:
+        raise ValueError(f"LLM response has no choices: {payload}")
+    message = choices[0].get("message") or {}
+    if "content" in message:
+        return message["content"]
+    if "text" in choices[0]:
+        return choices[0]["text"]
+    raise ValueError(f"LLM response has no message content: {payload}")
 
 
 def chat_completion_url(provider):
@@ -217,7 +235,8 @@ def llm_json(messages):
         "messages": messages,
         "temperature": 0,
     }
-    attempts = [dict(body, response_format={"type": "json_object"}), body]
+    use_json_mode = settings["provider"] != "fanar"
+    attempts = [dict(body, response_format={"type": "json_object"}), body] if use_json_mode else [body]
     last_error = None
     for payload_body in attempts:
         data = json.dumps(payload_body).encode("utf-8")
@@ -233,41 +252,106 @@ def llm_json(messages):
         try:
             with urllib.request.urlopen(request, timeout=45) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-                content = payload["choices"][0]["message"]["content"]
+                content = response_message_content(payload)
                 return parse_json_content(content)
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             last_error = detail
             if "response_format" not in detail and "json_object" not in detail:
                 break
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            last_error = str(exc)
+            continue
 
     raise RuntimeError(f"{settings['provider'].title()} API error: {last_error}")
+
+
+def rule_based_intent(question):
+    query = normalize(question)
+    limit_match = re.search(r"\btop\s+(\d+)|\b(\d+)\s+results?\b", query)
+    limit = int(next(group for group in limit_match.groups() if group)) if limit_match else None
+
+    if "nearest" in query or "closest" in query:
+        source_place = None
+        for place in sorted(PLACES, key=lambda p: len(p["name"] or ""), reverse=True):
+            if normalize(place["name"]) and normalize(place["name"]) in query:
+                source_place = place["name"]
+                break
+        target_type = None
+        for place_type in PLACE_TYPES:
+            readable = place_type.replace("_", " ")
+            if place_type in query or readable in query or f"{readable}s" in query:
+                target_type = place_type
+                break
+        return {
+            "intent": "nearest_search",
+            "source_place": source_place or "Villaggio Mall",
+            "target_type": target_type or "hospital",
+            "limit": limit or 5,
+        }
+
+    distance_match = re.search(r"within\s+([0-9]+(?:\.[0-9]+)?)\s*(?:km|kilometer|kilometers)", query)
+    if "within" in query and distance_match:
+        target_text = query.split("within", 1)[0]
+        reference_text = query.split(" of ", 1)[1] if " of " in query else query.split(" from ", 1)[1] if " from " in query else ""
+        target_type = None
+        reference_type = None
+        for place_type in PLACE_TYPES:
+            readable = place_type.replace("_", " ")
+            if place_type in target_text or readable in target_text or f"{readable}s" in target_text:
+                target_type = target_type or place_type
+            if place_type in reference_text or readable in reference_text or f"{readable}s" in reference_text:
+                reference_type = reference_type or place_type
+        return {
+            "intent": "within_distance",
+            "target_type": target_type or "school",
+            "reference_type": reference_type or "hospital",
+            "distance_km": float(distance_match.group(1)),
+        }
+
+    for place_type in PLACE_TYPES:
+        readable = place_type.replace("_", " ")
+        if place_type in query or readable in query or f"{readable}s" in query:
+            sort_by = "rating" if "rating" in query or "rated" in query else "popularity"
+            return {
+                "intent": "category_search",
+                "target_type": place_type,
+                "sort_by": sort_by,
+                "limit": limit or 10,
+            }
+
+    return {"intent": "unsupported", "reason": "This question is outside the current POI point-data demo."}
 
 
 def parse_intent(question):
     type_examples = ", ".join(PLACE_TYPES[:120])
     municipality_examples = ", ".join(MUNICIPALITIES[:40])
-    return llm_json(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "You convert a user's map question into one JSON object for a local Qatar POI dataset. "
-                    "Supported intents: nearest_search, within_distance, category_search, unsupported. "
-                    "Use only these JSON keys when relevant: intent, source_place, target_type, reference_type, "
-                    "distance_km, municipality, sort_by, limit, reason. "
-                    "Valid sort_by values: popularity, rating, ratingsTotal. "
-                    "For nearest_search, include source_place and target_type. "
-                    "For within_distance, include target_type, reference_type, and distance_km. "
-                    "For category_search, include target_type and optional municipality/sort_by/limit. "
-                    "If the question requires roads, routes, polygons, live traffic, reviews, or flood zones, use unsupported. "
-                    f"Common place types include: {type_examples}. "
-                    f"Municipalities include: {municipality_examples}."
-                ),
-            },
-            {"role": "user", "content": question},
-        ]
-    )
+    try:
+        return llm_json(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You convert a user's map question into exactly one valid JSON object. "
+                        "Do not include markdown, explanations, or code fences. "
+                        "The JSON object is for a local Qatar POI dataset. "
+                        "Supported intents: nearest_search, within_distance, category_search, unsupported. "
+                        "Use only these JSON keys when relevant: intent, source_place, target_type, reference_type, "
+                        "distance_km, municipality, sort_by, limit, reason. "
+                        "Valid sort_by values: popularity, rating, ratingsTotal. "
+                        "For nearest_search, include source_place and target_type. "
+                        "For within_distance, include target_type, reference_type, and distance_km. "
+                        "For category_search, include target_type and optional municipality/sort_by/limit. "
+                        "If the question requires roads, routes, polygons, live traffic, reviews, or flood zones, use unsupported. "
+                        f"Common place types include: {type_examples}. "
+                        f"Municipalities include: {municipality_examples}."
+                    ),
+                },
+                {"role": "user", "content": question},
+            ]
+        )
+    except Exception:
+        return rule_based_intent(question)
 
 
 def generate_answer(question, title, trace, rows):
