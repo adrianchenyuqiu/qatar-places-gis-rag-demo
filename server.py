@@ -4,6 +4,7 @@ import os
 import re
 import urllib.error
 import urllib.request
+from difflib import get_close_matches
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -12,6 +13,28 @@ ROOT = Path(__file__).resolve().parent
 SOURCE = Path("/Users/adrian/Downloads/Qatar_google_maps_places_sample_1000.jsonl")
 COMPACT_DATA = ROOT / "places_compact.json"
 APP_VERSION = "2026-05-21-fanar-resilient-v2"
+
+TYPE_ALIASES = {
+    "hospitals": "hospital",
+    "clinics": "doctor",
+    "schools": "school",
+    "parks": "park",
+    "restaurant": "restaurant",
+    "restaurants": "restaurant",
+    "resturant": "restaurant",
+    "resturants": "restaurant",
+    "restaraunt": "restaurant",
+    "restaraunts": "restaurant",
+    "food": "restaurant",
+    "malls": "shopping_mall",
+    "shopping_malls": "shopping_mall",
+    "shopping malls": "shopping_mall",
+    "attractions": "tourist_attraction",
+    "tourist attractions": "tourist_attraction",
+    "tourist_attractions": "tourist_attraction",
+    "hotels": "lodging",
+    "hotel": "lodging",
+}
 
 
 
@@ -121,25 +144,54 @@ def resolve_type(value):
     if not value:
         return None
     query = normalize(value).replace(" ", "_")
-    aliases = {
-        "hospitals": "hospital",
-        "clinics": "doctor",
-        "schools": "school",
-        "parks": "park",
-        "restaurants": "restaurant",
-        "malls": "shopping_mall",
-        "shopping_malls": "shopping_mall",
-        "attractions": "tourist_attraction",
-        "tourist_attractions": "tourist_attraction",
-        "hotels": "hotel",
-    }
-    query = aliases.get(query, query)
+    query = TYPE_ALIASES.get(query, query)
     if query in PLACE_TYPES:
         return query
     for place_type in PLACE_TYPES:
         if query in place_type or place_type in query:
             return place_type
     return query
+
+
+def infer_type_from_text(text):
+    query = normalize(text)
+    underscored = query.replace(" ", "_")
+    for alias, place_type in TYPE_ALIASES.items():
+        alias_text = alias.replace("_", " ")
+        if re.search(rf"\b{re.escape(alias_text)}\b", query) or re.search(rf"\b{re.escape(alias)}\b", underscored):
+            return place_type
+
+    candidates = {}
+    for place_type in PLACE_TYPES:
+        readable = place_type.replace("_", " ")
+        candidates[place_type] = place_type
+        candidates[readable] = place_type
+        candidates[f"{readable}s"] = place_type
+
+    for label, place_type in candidates.items():
+        if re.search(rf"\b{re.escape(label)}\b", query):
+            return place_type
+
+    stop_words = {
+        "what", "which", "where", "nearest", "closest", "near", "to", "from", "within",
+        "the", "a", "an", "is", "are", "of", "in", "around", "nearby", "best", "top",
+        "popular", "rated", "rating", "villaggio", "mall",
+    }
+    tokens = [token for token in re.findall(r"[a-z_]{4,}", query) if token not in stop_words]
+    labels = list(candidates.keys()) + list(TYPE_ALIASES.keys())
+    for token in tokens:
+        matches = get_close_matches(token, labels, n=1, cutoff=0.78)
+        if matches:
+            return TYPE_ALIASES.get(matches[0], candidates.get(matches[0]))
+    return None
+
+
+def find_place_in_text(text):
+    query = normalize(text)
+    for place in sorted(PLACES, key=lambda p: len(p["name"] or ""), reverse=True):
+        if normalize(place["name"]) and normalize(place["name"]) in query:
+            return place["name"]
+    return None
 
 
 def resolve_municipality(value):
@@ -273,17 +325,9 @@ def rule_based_intent(question):
     limit = int(next(group for group in limit_match.groups() if group)) if limit_match else None
 
     if "nearest" in query or "closest" in query:
-        source_place = None
-        for place in sorted(PLACES, key=lambda p: len(p["name"] or ""), reverse=True):
-            if normalize(place["name"]) and normalize(place["name"]) in query:
-                source_place = place["name"]
-                break
-        target_type = None
-        for place_type in PLACE_TYPES:
-            readable = place_type.replace("_", " ")
-            if place_type in query or readable in query or f"{readable}s" in query:
-                target_type = place_type
-                break
+        source_place = find_place_in_text(question)
+        target_text = query.split(" to ", 1)[0] if " to " in query else query.split(" near ", 1)[0]
+        target_type = infer_type_from_text(target_text)
         return {
             "intent": "nearest_search",
             "source_place": source_place or "Villaggio Mall",
@@ -295,14 +339,8 @@ def rule_based_intent(question):
     if "within" in query and distance_match:
         target_text = query.split("within", 1)[0]
         reference_text = query.split(" of ", 1)[1] if " of " in query else query.split(" from ", 1)[1] if " from " in query else ""
-        target_type = None
-        reference_type = None
-        for place_type in PLACE_TYPES:
-            readable = place_type.replace("_", " ")
-            if place_type in target_text or readable in target_text or f"{readable}s" in target_text:
-                target_type = target_type or place_type
-            if place_type in reference_text or readable in reference_text or f"{readable}s" in reference_text:
-                reference_type = reference_type or place_type
+        target_type = infer_type_from_text(target_text)
+        reference_type = infer_type_from_text(reference_text)
         return {
             "intent": "within_distance",
             "target_type": target_type or "school",
@@ -310,25 +348,53 @@ def rule_based_intent(question):
             "distance_km": float(distance_match.group(1)),
         }
 
-    for place_type in PLACE_TYPES:
-        readable = place_type.replace("_", " ")
-        if place_type in query or readable in query or f"{readable}s" in query:
-            sort_by = "rating" if "rating" in query or "rated" in query else "popularity"
-            return {
-                "intent": "category_search",
-                "target_type": place_type,
-                "sort_by": sort_by,
-                "limit": limit or 10,
-            }
+    target_type = infer_type_from_text(query)
+    if target_type:
+        sort_by = "rating" if "rating" in query or "rated" in query else "popularity"
+        return {
+            "intent": "category_search",
+            "target_type": target_type,
+            "sort_by": sort_by,
+            "limit": limit or 10,
+        }
 
     return {"intent": "unsupported", "reason": "This question is outside the current POI point-data demo."}
+
+
+def grounded_intent(question, intent):
+    if not isinstance(intent, dict):
+        return rule_based_intent(question)
+    grounded = dict(intent)
+    query = normalize(question)
+    if grounded.get("intent") == "nearest_search":
+        target_text = query.split(" to ", 1)[0] if " to " in query else query.split(" near ", 1)[0]
+        grounded_type = infer_type_from_text(target_text)
+        grounded_source = find_place_in_text(question)
+        if grounded_type:
+            grounded["target_type"] = grounded_type
+        if grounded_source:
+            grounded["source_place"] = grounded_source
+    elif grounded.get("intent") == "within_distance":
+        target_text = query.split("within", 1)[0]
+        reference_text = query.split(" of ", 1)[1] if " of " in query else query.split(" from ", 1)[1] if " from " in query else ""
+        grounded_target = infer_type_from_text(target_text)
+        grounded_reference = infer_type_from_text(reference_text)
+        if grounded_target:
+            grounded["target_type"] = grounded_target
+        if grounded_reference:
+            grounded["reference_type"] = grounded_reference
+    elif grounded.get("intent") == "category_search":
+        grounded_type = infer_type_from_text(query)
+        if grounded_type:
+            grounded["target_type"] = grounded_type
+    return grounded
 
 
 def parse_intent(question):
     type_examples = ", ".join(PLACE_TYPES[:120])
     municipality_examples = ", ".join(MUNICIPALITIES[:40])
     try:
-        return llm_json(
+        intent = llm_json(
             [
                 {
                     "role": "system",
@@ -351,6 +417,7 @@ def parse_intent(question):
                 {"role": "user", "content": question},
             ]
         )
+        return grounded_intent(question, intent)
     except Exception:
         return rule_based_intent(question)
 
@@ -382,7 +449,15 @@ def generate_answer(question, title, trace, rows):
                 },
             ]
         )
-        return payload.get("answer") or title
+        answer = payload.get("answer") if isinstance(payload, dict) else None
+        if isinstance(answer, str):
+            return answer
+        if isinstance(answer, dict):
+            for key in ("answer", "result", "text", "message"):
+                if isinstance(answer.get(key), str):
+                    return answer[key]
+            return json.dumps(answer, ensure_ascii=False)
+        return title
     except Exception:
         return title
 
