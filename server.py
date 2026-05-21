@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SOURCE = Path("/Users/adrian/Downloads/Qatar_google_maps_places_sample_1000.jsonl")
 COMPACT_DATA = ROOT / "places_compact.json"
+APP_VERSION = "2026-05-21-fanar-resilient-v2"
 
 
 
@@ -542,6 +543,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/health":
             payload = {
                 "ok": True,
+                "version": APP_VERSION,
                 "provider": os.getenv("AI_PROVIDER", "fanar"),
                 "model": os.getenv("FANAR_MODEL", os.getenv("OPENAI_MODEL", "Fanar")),
                 "fanar_key_configured": bool(os.getenv("FANAR_API_KEY")),
