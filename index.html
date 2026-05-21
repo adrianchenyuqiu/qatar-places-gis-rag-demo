@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Qatar Places GIS-Verified RAG Demo</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">GIS-Verified RAG Demo</p>
+        <h1>Qatar Places Map Question Answering</h1>
+        <p class="subtitle">
+          A simple prototype that retrieves Qatar POI data, calculates real distances, and returns verified map-based answers.
+        </p>
+      </div>
+      <div class="stat-grid" id="stats"></div>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <h2>Ask in Natural Language</h2>
+        <label>
+          Question
+          <textarea id="nlQuestion" rows="4" placeholder="What is the nearest hospital to Villaggio Mall?"></textarea>
+        </label>
+        <button id="runNaturalLanguage" class="primary">Ask with AI parser</button>
+      </section>
+
+      <section class="panel">
+        <h2>Try Example Questions</h2>
+        <div class="examples">
+          <button data-example="nearest">Nearest hospital to Villaggio Mall</button>
+          <button data-example="within">Schools within 1 km of hospitals</button>
+          <button data-example="popular">Popular tourist attractions</button>
+          <button data-example="municipality">Hospitals in Doha Municipality</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Nearest Place Search</h2>
+        <div class="form-grid">
+          <label>
+            Source place
+            <input id="nearestSource" list="placeNames" placeholder="Villaggio Mall" />
+          </label>
+          <label>
+            Target type
+            <select id="nearestType"></select>
+          </label>
+          <label>
+            Results
+            <input id="nearestLimit" type="number" min="1" max="20" value="5" />
+          </label>
+        </div>
+        <button id="runNearest" class="primary">Run nearest search</button>
+      </section>
+
+      <section class="panel">
+        <h2>Within-Distance Verification</h2>
+        <div class="form-grid">
+          <label>
+            Target type
+            <select id="withinTarget"></select>
+          </label>
+          <label>
+            Reference type
+            <select id="withinReference"></select>
+          </label>
+          <label>
+            Max distance (km)
+            <input id="withinKm" type="number" min="0.1" step="0.1" value="1" />
+          </label>
+        </div>
+        <button id="runWithin" class="primary">Verify within-distance results</button>
+      </section>
+
+      <section class="panel">
+        <h2>Category Search and Ranking</h2>
+        <div class="form-grid">
+          <label>
+            Place type
+            <select id="categoryType"></select>
+          </label>
+          <label>
+            Sort by
+            <select id="categorySort">
+              <option value="popularity">Popularity score</option>
+              <option value="rating">Rating</option>
+              <option value="ratingsTotal">Number of ratings</option>
+            </select>
+          </label>
+          <label>
+            Municipality
+            <select id="municipalityFilter"></select>
+          </label>
+        </div>
+        <button id="runCategory" class="primary">Search places</button>
+      </section>
+
+      <section class="results">
+        <div class="answer">
+          <p class="eyebrow">Verified Answer</p>
+          <h2 id="answerTitle">Choose a function to run the demo</h2>
+          <p id="answerText">
+            The system will retrieve relevant POIs and use coordinate-based GIS calculations to verify the result.
+          </p>
+        </div>
+        <div class="trace">
+          <p class="eyebrow">Verification Trace</p>
+          <ol id="traceList">
+            <li>Waiting for a question.</li>
+          </ol>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead id="resultHead"></thead>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <datalist id="placeNames"></datalist>
+    <script src="places_data.js"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
