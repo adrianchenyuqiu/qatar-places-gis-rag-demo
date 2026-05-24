@@ -90,6 +90,14 @@ function clearMap() {
   mapState.layer?.clearLayers();
 }
 
+function refreshMapSize() {
+  if (!mapState.map) return;
+  requestAnimationFrame(() => {
+    mapState.map.invalidateSize();
+    setTimeout(() => mapState.map.invalidateSize(), 120);
+  });
+}
+
 function markerStyle(kind) {
   const styles = {
     source: { color: "#155766", fillColor: "#1f7a8c", radius: 8, weight: 2 },
@@ -116,11 +124,13 @@ function fitMapToPlaces(items) {
     .filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng))
     .map((p) => [p.lat, p.lng]);
   if (!mapState.map || coordinates.length === 0) return;
+  refreshMapSize();
   if (coordinates.length === 1) {
     mapState.map.setView(coordinates[0], 15);
     return;
   }
   mapState.map.fitBounds(L.latLngBounds(coordinates), { padding: [42, 42], maxZoom: 15 });
+  setTimeout(() => mapState.map.fitBounds(L.latLngBounds(coordinates), { padding: [42, 42], maxZoom: 15 }), 140);
 }
 
 function renderNearestMap(source, candidates) {
