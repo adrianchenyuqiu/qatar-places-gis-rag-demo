@@ -141,9 +141,10 @@ function addPlaceMarker(place, kind, label, extra = "") {
   const marker = L.marker([place.lat, place.lng], {
     keyboard: true,
     riseOnHover: true,
+    title: `${label}: ${place.name}`,
     icon: L.divIcon({
-      className: "",
-      html: `<button class="map-marker ${kind}" type="button" aria-label="${label}: ${place.name}"></button>`,
+      className: "map-marker-icon",
+      html: `<span class="map-marker ${kind}" aria-hidden="true"></span>`,
       iconSize: [30, 30],
       iconAnchor: [15, 15],
       popupAnchor: [0, -16],
