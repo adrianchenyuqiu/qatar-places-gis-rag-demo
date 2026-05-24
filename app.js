@@ -109,7 +109,41 @@ function markerStyle(kind) {
 }
 
 function popupFor(place, label, extra = "") {
-  return `<div class="map-popup"><strong>${label}: ${place.name}</strong><small>${place.address || ""}</small>${extra ? `<br><small>${extra}</small>` : ""}</div>`;
+  const usefulTypes = (place.types || []).filter((type) => !["establishment", "point_of_interest"].includes(type));
+  const primaryType = usefulTypes[0] || "place";
+  const typeLabel = primaryType.replaceAll("_", " ");
+  const initials = (place.name || "POI")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+  const rating = Number.isFinite(place.rating) ? `${place.rating.toFixed(1)} rating` : "No rating";
+  const popularity = Number.isFinite(place.popularity) ? `${place.popularity.toFixed(0)} popularity` : "No popularity";
+  const website = place.website ? `<a href="${place.website}" target="_blank" rel="noreferrer">Website</a>` : "";
+  const maps = place.mapsUrl ? `<a href="${place.mapsUrl}" target="_blank" rel="noreferrer">Google Maps</a>` : "";
+  const phone = place.phone ? `<span>${place.phone}</span>` : "";
+  const actions = [maps, website, phone].filter(Boolean).join("");
+  const photo = place.imageUrl
+    ? `<img class="popup-photo" src="${place.imageUrl}" alt="${place.name}" />`
+    : `<div class="popup-photo placeholder"><span>${initials}</span><small>${typeLabel}</small></div>`;
+  return `
+    <div class="map-popup-card">
+      ${photo}
+      <div class="popup-body">
+        <p class="popup-kicker">${label}</p>
+        <strong>${place.name}</strong>
+        <small>${place.address || "Qatar POI dataset"}</small>
+        <div class="popup-metrics">
+          <span>${rating}</span>
+          <span>${popularity}</span>
+        </div>
+        ${extra ? `<div class="popup-extra">${extra}</div>` : ""}
+        <div class="popup-tags">${usefulTypes.slice(0, 3).map((type) => `<span>${type.replaceAll("_", " ")}</span>`).join("")}</div>
+        ${actions ? `<div class="popup-actions">${actions}</div>` : ""}
+      </div>
+    </div>
+  `;
 }
 
 function addPlaceMarker(place, kind, label, extra = "") {
