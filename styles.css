@@ -374,6 +374,75 @@ textarea {
   background: var(--candidate);
 }
 
+.map-marker {
+  appearance: none;
+  background-clip: padding-box;
+  border: 3px solid #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(20, 33, 61, 0.25);
+  cursor: pointer;
+  display: block;
+  margin: 4px;
+  padding: 0;
+  position: relative;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    filter 150ms ease;
+}
+
+.map-marker::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.map-marker:hover,
+.leaflet-marker-icon:hover .map-marker {
+  transform: scale(1.25);
+  box-shadow: 0 12px 28px rgba(20, 33, 61, 0.34);
+  filter: saturate(1.15);
+}
+
+.map-marker:hover::after,
+.leaflet-marker-icon:hover .map-marker::after {
+  opacity: 0.35;
+  transform: scale(1);
+}
+
+.map-marker.source {
+  background: var(--source);
+  color: var(--source);
+}
+
+.map-marker.verified {
+  background: var(--verified);
+  color: var(--verified);
+}
+
+.map-marker.candidate {
+  background: var(--candidate);
+  color: var(--candidate);
+}
+
+.map-marker.reference {
+  background: #c47f12;
+  color: #c47f12;
+}
+
+.leaflet-marker-icon {
+  cursor: pointer;
+}
+
 .leaflet-popup-content-wrapper {
   border-radius: 10px;
   padding: 0;

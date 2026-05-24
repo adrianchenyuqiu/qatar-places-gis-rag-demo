@@ -98,16 +98,6 @@ function refreshMapSize() {
   });
 }
 
-function markerStyle(kind) {
-  const styles = {
-    source: { color: "#155766", fillColor: "#1f7a8c", radius: 8, weight: 2 },
-    verified: { color: "#12643e", fillColor: "#1b7f4f", radius: 8, weight: 2 },
-    candidate: { color: "#626f7f", fillColor: "#7b8794", radius: 6, weight: 1 },
-    reference: { color: "#7a4b00", fillColor: "#c47f12", radius: 6, weight: 1 },
-  };
-  return { ...styles[kind], fillOpacity: 0.9 };
-}
-
 function popupFor(place, label, extra = "") {
   const usefulTypes = (place.types || []).filter((type) => !["establishment", "point_of_interest"].includes(type));
   const primaryType = usefulTypes[0] || "place";
@@ -148,9 +138,23 @@ function popupFor(place, label, extra = "") {
 
 function addPlaceMarker(place, kind, label, extra = "") {
   if (!mapState.layer || !Number.isFinite(place?.lat) || !Number.isFinite(place?.lng)) return null;
-  return L.circleMarker([place.lat, place.lng], markerStyle(kind))
+  const marker = L.marker([place.lat, place.lng], {
+    keyboard: true,
+    riseOnHover: true,
+    icon: L.divIcon({
+      className: "",
+      html: `<button class="map-marker ${kind}" type="button" aria-label="${label}: ${place.name}"></button>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      popupAnchor: [0, -16],
+    }),
+  })
     .bindPopup(popupFor(place, label, extra))
     .addTo(mapState.layer);
+  marker.on("click", () => marker.openPopup());
+  marker.on("focus", () => marker.openPopup());
+  marker.on("mouseover", () => marker.openPopup());
+  return marker;
 }
 
 function fitMapToPlaces(items) {
