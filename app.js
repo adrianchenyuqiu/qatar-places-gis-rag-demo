@@ -19,6 +19,12 @@ const els = {
   resultHead: document.querySelector("#resultHead"),
   resultBody: document.querySelector("#resultBody"),
   placeNames: document.querySelector("#placeNames"),
+  map: document.querySelector("#map"),
+};
+
+const mapState = {
+  map: null,
+  layer: null,
 };
 
 function uniqueSorted(values) {
@@ -67,6 +73,150 @@ function isStaticPagesMode() {
   const host = window.location.hostname;
   const localHosts = new Set(["", "localhost", "127.0.0.1", "::1"]);
   return !demoConfig.API_BASE_URL && !localHosts.has(host);
+}
+
+function initMap() {
+  if (!window.L || !els.map || mapState.map) return;
+  mapState.map = L.map(els.map, { scrollWheelZoom: true }).setView([25.2854, 51.531], 11);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(mapState.map);
+  mapState.layer = L.layerGroup().addTo(mapState.map);
+}
+
+function clearMap() {
+  initMap();
+  mapState.layer?.clearLayers();
+}
+
+function markerStyle(kind) {
+  const styles = {
+    source: { color: "#155766", fillColor: "#1f7a8c", radius: 8, weight: 2 },
+    verified: { color: "#12643e", fillColor: "#1b7f4f", radius: 8, weight: 2 },
+    candidate: { color: "#626f7f", fillColor: "#7b8794", radius: 6, weight: 1 },
+    reference: { color: "#7a4b00", fillColor: "#c47f12", radius: 6, weight: 1 },
+  };
+  return { ...styles[kind], fillOpacity: 0.9 };
+}
+
+function popupFor(place, label, extra = "") {
+  return `<div class="map-popup"><strong>${label}: ${place.name}</strong><small>${place.address || ""}</small>${extra ? `<br><small>${extra}</small>` : ""}</div>`;
+}
+
+function addPlaceMarker(place, kind, label, extra = "") {
+  if (!mapState.layer || !Number.isFinite(place?.lat) || !Number.isFinite(place?.lng)) return null;
+  return L.circleMarker([place.lat, place.lng], markerStyle(kind))
+    .bindPopup(popupFor(place, label, extra))
+    .addTo(mapState.layer);
+}
+
+function fitMapToPlaces(items) {
+  const coordinates = items
+    .filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng))
+    .map((p) => [p.lat, p.lng]);
+  if (!mapState.map || coordinates.length === 0) return;
+  if (coordinates.length === 1) {
+    mapState.map.setView(coordinates[0], 15);
+    return;
+  }
+  mapState.map.fitBounds(L.latLngBounds(coordinates), { padding: [42, 42], maxZoom: 15 });
+}
+
+function renderNearestMap(source, candidates) {
+  clearMap();
+  if (!source || !candidates.length || !window.L) return;
+  addPlaceMarker(source, "source", "Source");
+  candidates.forEach((candidate, index) => {
+    addPlaceMarker(
+      candidate,
+      index === 0 ? "verified" : "candidate",
+      index === 0 ? "Nearest verified" : `Candidate ${index + 1}`,
+      `Distance: ${formatKm(candidate.distanceKm)}`
+    );
+  });
+  const nearest = candidates[0];
+  L.polyline(
+    [
+      [source.lat, source.lng],
+      [nearest.lat, nearest.lng],
+    ],
+    { color: "#1f7a8c", weight: 4, opacity: 0.8, dashArray: "8 8" }
+  )
+    .bindPopup(`GIS distance: ${formatKm(nearest.distanceKm)}`)
+    .addTo(mapState.layer);
+  fitMapToPlaces([source, ...candidates]);
+}
+
+function renderWithinMap(matches) {
+  clearMap();
+  if (!matches.length || !window.L) return;
+  matches.slice(0, 12).forEach((item, index) => {
+    addPlaceMarker(item.target, index === 0 ? "verified" : "candidate", `Target ${index + 1}`, `Distance: ${formatKm(item.distanceKm)}`);
+    addPlaceMarker(item.nearest, "reference", "Nearest reference");
+    L.polyline(
+      [
+        [item.target.lat, item.target.lng],
+        [item.nearest.lat, item.nearest.lng],
+      ],
+      { color: "#1f7a8c", weight: index === 0 ? 4 : 2, opacity: index === 0 ? 0.8 : 0.35 }
+    ).addTo(mapState.layer);
+  });
+  fitMapToPlaces(matches.flatMap((item) => [item.target, item.nearest]));
+}
+
+function renderCategoryMap(results) {
+  clearMap();
+  if (!results.length || !window.L) return;
+  results.slice(0, 20).forEach((place, index) => {
+    addPlaceMarker(
+      place,
+      index === 0 ? "verified" : "candidate",
+      `Rank ${index + 1}`,
+      `Rating: ${safeNumber(place.rating)} | Popularity: ${safeNumber(place.popularity, 0)}`
+    );
+  });
+  fitMapToPlaces(results);
+}
+
+function decodeHtml(htmlText) {
+  const textArea = document.createElement("textarea");
+  textArea.innerHTML = htmlText || "";
+  return textArea.value;
+}
+
+function placeFromHtml(htmlText) {
+  const linkMatch = htmlText?.match(/<a [^>]*>(.*?)<\/a>/i);
+  if (linkMatch) {
+    return findPlaceByName(decodeHtml(linkMatch[1].replace(/<[^>]+>/g, "")).trim());
+  }
+  return findPlaceByName(decodeHtml(htmlText || "").replace(/<[^>]+>/g, " ").trim());
+}
+
+function renderBackendMap(payload) {
+  const rows = payload.rows || [];
+  const intent = payload.intent || {};
+  if (intent.intent === "nearest_search") {
+    const source = findPlaceByName(intent.source_place);
+    const candidates = rows
+      .map((row) => placeFromHtml(row[1]))
+      .filter(Boolean)
+      .map((place) => ({ ...place, distanceKm: source ? kmBetween(source, place) : 0 }));
+    renderNearestMap(source, candidates);
+    return;
+  }
+  if (intent.intent === "within_distance") {
+    const matches = rows
+      .map((row) => {
+        const target = placeFromHtml(row[1]);
+        const nearest = placeFromHtml(row[2]);
+        return target && nearest ? { target, nearest, distanceKm: kmBetween(target, nearest) } : null;
+      })
+      .filter(Boolean);
+    renderWithinMap(matches);
+    return;
+  }
+  renderCategoryMap(rows.map((row) => placeFromHtml(row[0])).filter(Boolean));
 }
 
 function setTrace(items) {
@@ -135,6 +285,7 @@ function runNearest() {
     setAnswer("Source place not found", "Try a place name from the dataset, such as Villaggio Mall or Souq Waqif.");
     setTrace(["No source place matched the query."]);
     setTable([], []);
+    clearMap();
     return;
   }
 
@@ -164,6 +315,7 @@ function runNearest() {
       safeNumber(p.popularity, 0),
     ])
   );
+  renderNearestMap(source, candidates);
 }
 
 function runWithin() {
@@ -206,6 +358,7 @@ function runWithin() {
       safeNumber(item.target.rating),
     ])
   );
+  renderWithinMap(matches);
 }
 
 function runCategory() {
@@ -244,6 +397,7 @@ function runCategory() {
       safeNumber(p.popularity, 0),
     ])
   );
+  renderCategoryMap(results);
 }
 
 function applyExample(name) {
@@ -279,6 +433,7 @@ async function runNaturalLanguage() {
     setAnswer("Please enter a question", "Try: What is the nearest hospital to Villaggio Mall?");
     setTrace(["No natural-language question was entered."]);
     setTable([], []);
+    clearMap();
     return;
   }
 
@@ -293,12 +448,14 @@ async function runNaturalLanguage() {
       "Deploy server.py to a backend host such as Render, then set API_BASE_URL in config.js.",
     ]);
     setTable([], []);
+    clearMap();
     return;
   }
 
   setAnswer("Thinking...", "The AI parser is converting your question into a structured GIS query.");
   setTrace(["Sending question to the local backend.", "Waiting for intent parsing and GIS verification."]);
   setTable([], []);
+  clearMap();
 
   try {
     const response = await fetch(apiUrl("/api/ask"), {
@@ -314,6 +471,7 @@ async function runNaturalLanguage() {
     setAnswer(payload.title, payload.answer);
     setTrace(payload.trace || []);
     setTable(payload.headers || [], payload.rows || []);
+    renderBackendMap(payload);
   } catch (error) {
     setAnswer("AI query failed", error.message);
     setTrace([
@@ -321,6 +479,7 @@ async function runNaturalLanguage() {
       "Check that server.py is running and the AI provider environment variables are set.",
     ]);
     setTable([], []);
+    clearMap();
   }
 }
 
@@ -334,4 +493,5 @@ document.querySelectorAll("[data-example]").forEach((button) => {
 
 populateControls();
 renderStats();
+initMap();
 applyExample("nearest");

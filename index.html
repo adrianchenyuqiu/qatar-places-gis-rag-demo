@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Qatar Places GIS-Verified RAG Demo</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQvPVK8M6M5rK+2Kxk4YUXD4DJ3v3hA="
+      crossorigin=""
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -113,6 +119,17 @@
             <li>Waiting for a question.</li>
           </ol>
         </div>
+        <div class="map-panel">
+          <div class="map-head">
+            <p class="eyebrow">Free Map View</p>
+            <div class="legend">
+              <span><i class="source-dot"></i>Source</span>
+              <span><i class="verified-dot"></i>Verified result</span>
+              <span><i class="candidate-dot"></i>Candidate</span>
+            </div>
+          </div>
+          <div id="map"></div>
+        </div>
         <div class="table-wrap">
           <table>
             <thead id="resultHead"></thead>
@@ -123,6 +140,11 @@
     </main>
 
     <datalist id="placeNames"></datalist>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
     <script src="places_data.js"></script>
     <script src="config.js"></script>
     <script src="app.js"></script>

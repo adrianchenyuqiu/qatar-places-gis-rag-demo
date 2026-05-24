@@ -7,6 +7,9 @@
   --accent-dark: #155766;
   --ok: #1b7f4f;
   --surface: #ffffff;
+  --source: #1f7a8c;
+  --verified: #1b7f4f;
+  --candidate: #7b8794;
 }
 
 * {
@@ -216,6 +219,77 @@ textarea {
   margin: 5px 0;
 }
 
+.map-panel {
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfe;
+}
+
+.map-head .eyebrow {
+  margin: 0;
+}
+
+#map {
+  width: 100%;
+  min-height: 430px;
+  background: #e8eef3;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.source-dot {
+  background: var(--source);
+}
+
+.verified-dot {
+  background: var(--verified);
+}
+
+.candidate-dot {
+  background: var(--candidate);
+}
+
+.map-popup strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.map-popup small {
+  color: var(--muted);
+}
+
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
@@ -280,5 +354,14 @@ a {
 
   .results {
     grid-row: auto;
+  }
+
+  #map {
+    min-height: 360px;
+  }
+
+  .map-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
